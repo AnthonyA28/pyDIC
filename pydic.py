@@ -22,6 +22,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # Contributors : Ronan GARO (debugging + log strain), Laurent MAHEO (debugging + log strain)
+# Handyman Antman (Anthony J Arrowood) is fiddling with this as of 4/24/2021 (:
 
 # ====== INTRODUCTION
 # Welcome to pydic a free python suite for digital image correlation.
@@ -45,6 +46,7 @@ from scipy.interpolate import Rbf
 import scipy.interpolate
 import copy
 import os
+import matplotlib.colors as colors
 
 
 
@@ -156,6 +158,33 @@ for digital image correlation"""
           name = self.prepare_saved_file('grid', 'png')
           draw_opencv(self.reference_image, grid = self, scale=scale, gr_color=(255,255,250), filename=name, text=name)
 
+
+
+
+     """AA #TODO: I want the raw displacements in the following format #p1 
+        I want the raw displacements in the following format :
+      
+        <ref_pos_x 1>, <ref_pos_y 1> 
+          <image 1>, <disp_x>, <disp_y>, <disp_abs>
+          <image 2>, <disp_x>, <disp_y>, <disp_abs>
+          ...
+          .
+          .
+
+        <ref_pos_x 1>, <ref_pos_y 2> 
+          <image 1>, <disp_x>, <disp_y>, <disp_abs>
+          <image 2>, <disp_x>, <disp_y>, <disp_abs>
+          ...
+          .
+          .
+
+
+
+     """
+     # def get_raw_disps(self):
+
+
+
      def write_result(self):
           """write a raw csv result file. Indeed, you can use your favorite tool to post-treat this file"""
           name = self.prepare_saved_file('result', 'csv')
@@ -175,10 +204,12 @@ for digital image correlation"""
           f.close()
 
 
-     def plot_field(self, field, title):
-          """Plot the chosen field such as strain_xx, disp_xx, etc. in a matplotlib interactive map"""
+     def plot_field(self, field, title, min_val=-1, max_val=-1): 
+          """Plot the chosen field such as strain_xx, disp_xx, etc. in a matplotlib interactive map
+            The min_val, max_val are optional in case a consistent color scheme between plots is desired (AA)
+          """
           image_ref = cv2.imread(self.image, 0)
-          Plot(image_ref, self, field, title)
+          Plot(image_ref, self, field, title, min_val, max_val)
           
      def interpolate_displacement(self, point, disp, *args, **kwargs):
           """Interpolate the displacement field. It allows to (i) construct the displacement grid and to 
@@ -779,7 +810,8 @@ def compute_disp_and_remove_rigid_transform(p1, p2):
 
 
 class Plot:
-    def __init__(self, image, grid, data, title):
+    ''' If the min_val and max_vals are not set, then they min,max of the data being plotted (AA)'''
+    def __init__(self, image, grid, data, title, min_val=-1, max_val=-1):
         self.data = np.ma.masked_invalid(data)
         self.data_copy = np.copy(self.data)
         self.grid_x = grid.grid_x
@@ -792,12 +824,17 @@ class Plot:
         self.ax = self.fig.add_subplot(111)
         self.fig.subplots_adjust(left=0.25, bottom=0.25)
 
+        if(min_val == -1 ):
+          min_val = self.data.min()
+        if(max_val == -1 ):
+          max_val = self.data.max()
+
         self.ax.imshow(image, cmap=plt.cm.binary)
         #ax.contour(grid_x, grid_y, g, 10, linewidths=0.5, colors='k', alpha=0.7)
 
-        
-        self.im = self.ax.contourf(grid.grid_x, grid.grid_y, self.data, 10, cmap=plt.cm.rainbow,
-                         vmax=self.data.max(), vmin=self.data.min(), alpha=0.7)
+        # Use the specified min_vals and max_vals in order, the resulting color scheme is normed between this vals 
+        self.im = self.ax.contourf(grid.grid_x, grid.grid_y, self.data, 30, cmap=plt.cm.coolwarm,
+                         vmax=max_val, vmin=min_val, alpha=0.7)
         self.contour_axis = plt.gca()
 
         self.ax.set_title(title)
@@ -805,6 +842,7 @@ class Plot:
 
         axmin = self.fig.add_axes([0.25, 0.1, 0.65, 0.03])
         axmax = self.fig.add_axes([0.25, 0.15, 0.65, 0.03])
+
         self.smin = Slider(axmin, 'set min value', self.data.min(), self.data.max(), valinit=self.data.min(),valfmt='%1.6f')
         self.smax = Slider(axmax, 'set max value', self.data.min(), self.data.max(), valinit=self.data.max(),valfmt='%1.6f')
         
@@ -820,7 +858,7 @@ class Plot:
         self.data = np.ma.masked_where(self.data < self.smin.val, self.data)
         self.data = np.ma.masked_invalid(self.data)
 
-        self.im = self.contour_axis.contourf(self.grid_x, self.grid_y, self.data, 10, cmap=plt.cm.rainbow, alpha=0.7)
+        self.im = self.contour_axis.contourf(self.grid_x, self.grid_y, self.data, 10, cmap=plt.cm.coolwarm, alpha=0.7) #coolwarm is cooler than ranbow (AA)
 
         
         self.cb.update_bruteforce(self.im)
