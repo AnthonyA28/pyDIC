@@ -260,9 +260,8 @@ for digital image correlation"""
 
      def compute_strain_field(self):
           """Compute strain field from displacement thanks to numpy"""
-          #get strain fields
-          dx = self.grid_x[1][0] - self.grid_x[0][0]
-          dy = self.grid_y[0][1] - self.grid_y[0][0]
+          dx = self.grid_x[1][0] - self.grid_x[0][0] # the pixel length between each point in the x direction 
+          dy = self.grid_y[0][1] - self.grid_y[0][0] # and in the y direction 
 
           
           strain_xx, strain_xy = np.gradient(self.disp_x, dx, dy, edge_order=2)
@@ -514,6 +513,12 @@ sequence of images. The displacements are computed and a result file is written
      
      img_ref = cv2.imread(img_list[0], 0)
      img_ref = cv2.putText(img_ref, "Displaying markers... Press any buttons to continue", (50,50), cv2.FONT_HERSHEY_SIMPLEX, 1,(255,255,255),4)
+     img_ref = cv2.putText(img_ref, "Top left is origin, +x is right, +y is down ", (50,100), cv2.FONT_HERSHEY_SIMPLEX, 1,(255,255,255),4)
+     img_ref = cv2.putText(img_ref, str("area_coordinates = TL"+ str(area[0])+ ",    BR"+ str(area[1])), (50,150), cv2.FONT_HERSHEY_SIMPLEX, 1,(255,255,255),4)
+     img_ref = cv2.putText(img_ref, str(len(points_x)) + " x points,  " + str(len(points_y)) + " y points ", (50,200), cv2.FONT_HERSHEY_SIMPLEX, 1,(255,255,255),4)
+     
+     
+            
 
      draw_opencv(img_ref, point=points_in)
 
@@ -600,8 +605,8 @@ These results are :
      # treat optional args
      interpolation= 'raw' if not 'interpolation' in kwargs else kwargs['interpolation']
      save_image   = True if not 'save_image' in kwargs else kwargs['save_image']
-     scale_disp   = 4. if not 'scale_disp' in kwargs else float(kwargs['scale_disp'])
-     scale_grid   = 25. if not 'scale_grid' in kwargs else float(kwargs['scale_grid'])
+     scale_disp   = 1. if not 'scale_disp' in kwargs else float(kwargs['scale_disp']) ##AA 4->1
+     scale_grid   = 1. if not 'scale_grid' in kwargs else float(kwargs['scale_grid']) ##AA 25->1
      strain_type  = 'cauchy' if not 'strain_type' in kwargs else kwargs['strain_type']
 
      # read meta info file
@@ -650,8 +655,9 @@ These results are :
                
      # compute displacement and strain
      for i, mygrid in enumerate(grid_list):
-          print("compute displacement and strain field of", image_list[i], "...")
-          disp = compute_disp_and_remove_rigid_transform(point_list[i], point_list[0])
+          print("compute displacement and strain field of ", image_list[i], "...")
+          # disp = compute_disp_and_remove_rigid_transform(point_list[i], point_list[0]) # disp is measured from reference (image) need to figure out why this gives me WACKY negative values 
+          disp = compute_displacement(point_list[i], point_list[0]) ##FIXME #TODO  AA 
           mygrid.add_raw_data(win_size, image_list[0], image_list[i], point_list[0], point_list[i], disp)
           
           disp_list.append(disp)
@@ -704,6 +710,8 @@ def compute_displacement(point, pointf):
 area = []
 cropping = False
 
+
+                 
 def pick_area_of_interest(PreliminaryImage):
     global area, cropping
     image = cv2.putText(PreliminaryImage, "Pick the area of interest (left click + move mouse) and press 'c' button to continue", (50,50), cv2.FONT_HERSHEY_SIMPLEX, 1,(255,255,255),4)
@@ -711,9 +719,10 @@ def pick_area_of_interest(PreliminaryImage):
     def click_and_crop(event, x, y, flags, param):
         global area, cropping
         if event == cv2.EVENT_LBUTTONDOWN:
+            print("Cursor: " , str(x)+", ",  str(y))
             area = [(x, y)]
             cropping = True
- 
+            
         elif event == cv2.EVENT_LBUTTONUP:
             area.append((x, y))
             cropping = False
@@ -721,7 +730,9 @@ def pick_area_of_interest(PreliminaryImage):
             # draw a rectangle around the region of interest
             Newimage = cv2.rectangle(image, area[0], area[1], (0, 255, 0), 2)
             cv2.imshow('image', Newimage)
+        
             
+
 
     clone = image.copy()
     cv2.namedWindow('image', cv2.WINDOW_NORMAL)
