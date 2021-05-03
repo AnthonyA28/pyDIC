@@ -1,24 +1,31 @@
+# INPUTS
+##########
+ # to store the grid data (so we dont have to keep rechecking the DIC file )
+directory = r'D:\\0STUFF_IN_USE\\pyDIC\\examples\\0shear_test\\0.5cm_5-1-2021_pngs\\'
+out_dir = r'D:\\0STUFF_IN_USE\\pyDIC\\examples\\0shear_test\\0.5cm_5-1-2021_pngs\\'
+read_images = True           #If false, then the DIC file will be used (which stores the positional data  )
+get_data_from_pickle = True#If false, then the (strains/disps will be calculated from the DIC file )
+show_plots = False
+save_plots = True
+save_field_plots = True
+grp_size_x = 8
+grp_size_y = 3
+correl_wind_size = (40,40) # default(80,80) # the size in pixel of the correlation windows smaller vals seem to be better at tracking 
+correl_grid_size = (20,20) # the size in pixel of the interval (dx,dy) of the correlation grid
+slide_y_loc = 1019
+left_side_tape_x_loc = 237
+pix_per_mm = 38.7
+
+'''
+    If using spyder type in the console 
+    %matplotlib qt
+        when you want graphs in a separate window and
+    %matplotlib inline
+        when you want an inline plot
+'''
+##########
 
 
-from matplotlib import pyplot as plt
-import numpy as np
-from scipy import stats
-import os
-import cv2
-import matplotlib as mympl
-# I think this solves the fail to allocate bitmap issue 
-#   WARNING: only for use for saving images (not showing them )
-# mympl.use('Agg')
-import pickle as pickle # to store the grid data (so we dont have to keep rechecking the DIC file )
-import gc # garbage collection to prevent the memory from piling up 
-
-directory = r'D:/0STUFF_IN_USE/pyDIC/examples/0shear_test/img/'
-read_images = True #If false, then the DIC file will be used (which stores the positional data  )
-get_data_from_pickle = True #If false, then the (strains/disps will be calculated from the DIC file )
-
-
-import imp
-pydic = imp.load_source('pydic', '../../pydic.py')
 '''
 directory structure should be:
 /pydic
@@ -26,30 +33,47 @@ directory structure should be:
         /<example_name>
             -main.py
             /img
-
-
+            /fig_outputs
 '''
 
 
 
 
-if(read_images):
+
+from matplotlib import pyplot as plt
+import numpy as np
+from scipy import stats
+import os
+import cv2
+import gc # garbage collection to prevent the memory from piling up 
+import matplotlib as mympl
+import pickle as pickle
+import imp
+pydic = imp.load_source('pydic', '../../pydic.py')
+if not show_plots: mympl.use('Agg')
+import copy 
+
+
+
+
+
+
+
+if(read_images): 
     get_data_from_pickle = False
+    pydic.init(directory+r'*.png', correl_wind_size, correl_grid_size, str(directory+r'pydic.dic'))
 
-
-if(read_images):
-    correl_wind_size = (30,30)# default(80,80) # the size in pixel of the correlation windows
-    correl_grid_size = (20,20) # the size in pixel of the interval (dx,dy) of the correlation grid
-    pydic.init(directory+r'*.jpg', correl_wind_size, correl_grid_size, directory+r'pydic.dic')
-
-if( get_data_from_pickle ):
+'''
+    If not reading images, then the DIC file may be read, 
+   alternatively the precomputed (picked) data can be read. 
+'''
+if get_data_from_pickle :
     with open(directory+r'/grid_list.pkl', 'rb') as input:
         pydic.grid_list = pickle.load(input)
 else:
-    pydic.read_dic_file(directory+r'pydic.dic', interpolation='raw', save_image=True)
+    pydic.read_dic_file(directory+r'pydic.dic', interpolation='spline', save_image=True, strain_type="2nd_order")
 
-
-if( not get_data_from_pickle):
+if not get_data_from_pickle:
     with open(directory+'grid_list.pkl', 'wb') as output:
         pickle.dump(pydic.grid_list, output, pickle.HIGHEST_PROTOCOL)
 
@@ -57,328 +81,155 @@ if( not get_data_from_pickle):
 
 
 
-
-grid_list_disps = [] # holds a matrix of my calculated absolut displacements 
-pos_names_mat = []
-for grid in pydic.grid_list:
-    print(grid.image)
-    index = 0 
-    pos_names = []
-    # arr = [grid.image]
-    grid_disps = []
-    for i in range(grid.size_x):
-        arr_y = []
-        for j in range(grid.size_y):
-            disp = grid.correlated_point[index] - grid.reference_point[index]
-            abs_disp = np.sqrt(disp[0]**2 + disp[1]**2)
-            arr_y.append(abs_disp)
-            pos_names.append(str(grid.grid_x[i,j])                   + ',' + str(grid.grid_y[i,j]))
-            index = index + 1
-        grid_disps.append(arr_y)
-    # print("\n\n")
-    grid_disps = np.array(grid_disps)
-    grid_list_disps.append(grid_disps)
-    pos_names_mat.append(pos_names)
-grid_list_disps = np.array(grid_list_disps)
-# mat = np.array(mat).T # now is is (y,x)
-print(grid_list_disps.shape)
-
-# pos_names_mat = np.array(pos_names_mat).T
-
-avged_grids = []
-
-for i in range(0, len(grid_list_disps)):
-    avged_x = np.mean(grid_list_disps[i],0)
-    avged_grids.append(avged_x)
-    # print(grid_list_disps[i])
-
-# # print(grid_list_disps)
-avged_grids = np.array(avged_grids) 
-print(avged_grids.shape) # numgrids, num y sections
-avged_grids = avged_grids.T # now transpose that 
-for y in range(0, len(avged_grids)):
-    plt.plot(avged_grids[y])
-plt.show()
-
-
-
-
-
-# DO some nice plotting 
-def get_min_and_max(obj, element):
-    total_min = getattr(obj[0],element).min()
-    total_max = getattr(obj[0],element).max() 
-    for i in range(len(obj)):
-        a_max = getattr(obj[i],element).max()
-        a_min = getattr(obj[i],element).min()
-        if( a_max > total_max):
-            total_max = a_max
-        if( a_min < total_min):
-            total_min = a_min
-    return total_min, total_max
-        
-
-
-
-pos_names_mat = []
-for grid in pydic.grid_list:
-    index = 0 
-    row = []
-    for i in range(grid.size_x):
-        col = []
-        for j in range(grid.size_y):
-            disp = grid.correlated_point[index] - grid.reference_point[index]
-            abs_disp = np.sqrt(disp[0]**2 + disp[1]**2)
-            col.append(abs_disp)
-            index += 1
-        row.append(col)
-    grid.aa_disps = np.array(row)
-
-
-
-total_min_disp_x, total_max_disp_x = get_min_and_max(pydic.grid_list,"disp_x")
-total_min_disp_y, total_max_disp_y = get_min_and_max(pydic.grid_list,"disp_y")
-total_min_aa_disp, total_max_aa_disp = get_min_and_max(pydic.grid_list,"aa_disps")
-
-
-for i in range(0, len(pydic.grid_list)):
-      grid = pydic.grid_list[i]
-      print("Plotting " + str(grid.image))
-    
-      fig = grid.plot_field(grid.aa_disps, 'abs disp')  
-      plt.savefig("fig_outputs/aa_disps/aa_disp_"+str(i))
-
-      fig = grid.plot_field(grid.disp_x, 'x disp')  
-      plt.savefig("fig_outputs/x_disps/x_disp_"+str(i))
-
-      fig = grid.plot_field(grid.disp_y, 'y disp')
-      plt.savefig("fig_outputs/y_disps/y_disp_"+str(i))
-      
-      plt.cla() 
-      plt.clf() 
-      plt.close('all')   
-      
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-""" Probably nonsense 
-# for grid in grid_list_disps:
-#     # average the displacements over a deltaY 
-#     groups = 5 
-
-#     num_per_group = int(np.ceil(len(grid_list_disps[0])/groups))
-#     new_grid = []
-#     strin = ""
-#     x = 0 
-#     end = False
-#     while not end:
-#         group = []
-#         summed = np.zeros(len(grid[0]))
-#         num_in_this_group = 0
-#         for sg in range(0, num_per_group):
-#             summed += grid[int(x+sg)]
-#             num_in_this_group += 1
-#             strin += str(int(x+sg)) + ", "
-#             if (x + sg >= len(grid[0]) ):
-#                 end = True
-#                 break
-#         summed/= num_in_this_group
-#         new_grid.append(summed)
-#         strin += "\n\n\n"
-#         x += num_per_group 
-
-# new_grid = np.array(new_grid)
-# print(strin)
-
-# r = 0 
-# new_grid = new_grid.T
-# for grid in new_grid:
-
-#     plt.plot(row)
-#     print(pos_names_mat[r])
-#     plt.show()
-#     r += 1
-#     # for col in row:
-#         # print(col)
-#         # plt.savefig("col[-0]")
+print("Making directories for outputs in ", out_dir, "/fig_outputs")
+def make_dir(the_dir):
+    if not os.path.exists(the_dir):
+        os.mkdir(the_dir)
+
+make_dir(out_dir+"/fig_outputs")
+make_dir(out_dir+"/fig_outputs/disp_x")
+make_dir(out_dir+"/fig_outputs/disp_y")
+make_dir(out_dir+"/fig_outputs/strain_xx")
+make_dir(out_dir+"/fig_outputs/strain_yy")
+make_dir(out_dir+"/fig_outputs/strain_xy")
+
+
+
+def pydic_get_field(element):
+    oup = [] # (objnum, x, y )
+    for i in range(len(pydic.grid_list)):
+        row = getattr(pydic.grid_list[i],element)
+        oup.append(row)
+    return np.array(oup)
+
+
+# These are 3d arrays in the form (num_images, x, y )
+loc_x_list      = pydic_get_field("grid_x")
+loc_y_list      = pydic_get_field("grid_y")
+size_x_list     = pydic_get_field("size_x")
+size_y_list     = pydic_get_field("size_y")
+disp_x_list     = pydic_get_field("disp_x")
+disp_y_list     = pydic_get_field("disp_y") 
+strain_xx_list  = pydic_get_field("strain_xx")
+strain_yy_list  = pydic_get_field("strain_yy")
+strain_xy_list  = pydic_get_field("strain_xy")
+
+
+"""
+    Make the y origin at the edge of the glass slide 
+    Then scale things to the actuall mm measurements instead of pixels 
 """
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-# def worker(rang):
-#   print("working")
-#   for i in rang:
-#       grid = pydic.grid_list[i]
-#       # grid.plot_field(grid.disp_x, 'x disp')
-#       grid.plot_field(grid.disp_x, 'x disp', min_val=total_min_disp_x, max_val=total_max_disp_x)
-#       plt.savefig("fig_outputs/x_disps/x_disp_"+str(i))
-#       plt.cla() 
-#       plt.clf() 
-#       plt.close('all')   
-#       gc.collect()
-
-#       grid.plot_field(grid.disp_y, 'y disp', min_val=total_min_disp_y, max_val=total_max_disp_y)  # plt.show()
-#       plt.savefig("fig_outputs/y_disps/y_disp_"+str(i))
-      
-#       plt.cla() 
-#       plt.clf() 
-#       plt.close('all')   
-#       gc.collect()
-
-
+loc_x_list /= pix_per_mm
+loc_y_list /= pix_per_mm
+disp_x_list /= pix_per_mm
+disp_y_list /= pix_per_mm
+for i in range(0, len(loc_y_list)):
+    loc_y_list[i] -= slide_y_loc/pix_per_mm
+    loc_x_list[i] -= left_side_tape_x_loc/pix_per_mm
     
 
-# procs = []
-# rang = len(pydic.grid_list)
-
-# skip = 5
-# for i in range(0, rang, skip):
-#     row = []
-#     for j in range(0, skip):
-#         row.append(i + j)
-
-#     print("creating a process for " + str(row))
-
-#     proc=mp.Process(target=worker, args=(row))
-#     # proc.daemon=True
-#     proc.start()
-
-# for proc in procs:
-#     proc.join()
 
 
+""" 
+    This averages the 1st axis of a array into subgroups 
+"""
+
+def avg_arr(arr, groupsize):
+    i = 0 
+    sum_ = np.full_like(arr[0],0)
+    n_in_group = 0
+    avgs = []
+    for x in range(0,len(arr)):
+        n_in_group += 1
+        sum_ += arr[x]
+        if( n_in_group == groupsize or x == len(arr)-1):
+            avg = sum_/n_in_group
+            sum_ = np.full_like(arr[0],0)
+            avgs.append(avg)
+            n_in_group = 0
+    return np.array(avgs)
 
 
-
-
-
-# grid = pydic.grid_list[-1]
-# # print(grid.correlated_point)
-# # print(grid.correlated_point)
-
-# mat = []
-# pos_names_mat = []
-# for grid in pydic.grid_list:
-#     print(grid.image)
-#     index = 0 
-#     arr = []
-#     pos_names = []
-#     # arr = [grid.image]
-#     for i in range(grid.size_x):
-#         for j in range(grid.size_y):
-#             disp = grid.correlated_point[index] - grid.reference_point[index]
-#             abs_disp = np.sqrt(disp[0]**2 + disp[1]**2)
-#             arr.append(abs_disp)
-#             pos_names.append(str(grid.grid_x[i,j])                   + ',' + str(grid.grid_y[i,j]))
-#             # strin = str(
-#                 # str(index)                              + ',' +
-#                 # str(i)                                  + ',' + str(j)                  + ',' + 
-#                 # str(grid.grid_x[i,j])                   + ',' + str(grid.grid_y[i,j])   + ',' + 
-#                 # str(grid.correlated_point[index][0])    + ',' + str(grid.correlated_point[index][1]) + ',' + #x, y 
-#                 # str(grid.reference_point[index][0])     + ',' + str(grid.correlated_point[index][1]) + ',' + #x, y 
-#                 # str(abs_disp)
-#             # )
-#             index = index + 1
-#             # print(strin)
-#     mat.append(arr)
-#     pos_names_mat.append(pos_names)
-#     # print("\n\n")
-
-# mat = np.array(mat).T
-# pos_names_mat = np.array(pos_names_mat).T
-
-# r = 0 
-# for row in mat:
-
-#     plt.plot(row)
-#     print(pos_names_mat[r])
-#     plt.show()
-#     r += 1
-#     # for col in row:
-#         # print(col)
-#         # plt.savefig("col[-0]")
+print("Averaging the results over width (x) ")
+# These are 2d arrays in the form (y , n_imge)
+loc_y_list__avgd_x     = avg_arr(np.mean(loc_y_list, 1).T, grp_size_y)
+disp_x_list__avgd_x    = avg_arr(np.mean(disp_x_list, 1).T, grp_size_y)
+disp_y_list__avgd_x    = avg_arr(np.mean(disp_y_list, 1).T, grp_size_y)
+strain_xx_list__avgd_x = avg_arr(np.mean(strain_xx_list, 1).T, grp_size_y)
+strain_yy_list__avgd_x = avg_arr(np.mean(strain_yy_list, 1).T, grp_size_y)
+strain_xy_list__avgd_x = avg_arr(np.mean(strain_xy_list, 1).T, grp_size_y)
 
 
 
+print("Averaging the results over length (y) ")
+# These are 2d arrays in the form (x, n_imge)
+loc_x_list__avgd_y     = avg_arr(np.mean(loc_x_list, 2).T, grp_size_x)
+disp_x_list__avgd_y    = avg_arr(np.mean(disp_x_list, 2).T, grp_size_x)
+disp_y_list__avgd_y    = avg_arr(np.mean(disp_y_list, 2).T, grp_size_x)
+strain_xx_list__avgd_y = avg_arr(np.mean(strain_xx_list, 2).T, grp_size_x)
+strain_yy_list__avgd_y = avg_arr(np.mean(strain_yy_list, 2).T, grp_size_x)
+strain_xy_list__avgd_y = avg_arr(np.mean(strain_xy_list, 2).T, grp_size_x)
 
 
 
+# Lets plot these over Time (Each axis will have its own curve)
+def plot_arr(arr, plot_title, save_loc, avged_axis):
+    
+    
+    plt.title(plot_title)
+    for x_or_y in range(0, len(arr)):
+        if avged_axis == "x":
+            plt.plot(arr[x_or_y], label="y {:0.1f}".format(loc_y_list__avgd_x[x_or_y][0]))
+        elif avged_axis == "y":
+            plt.plot(arr[x_or_y], label="x {:0.1f}".format(loc_x_list__avgd_y[x_or_y][0]))
+        else:
+            print("ERROR in plot_arr INCORRECT AXIS ")
+        plt.legend()
+    if show_plots: plt.show()
+    if save_plots: plt.savefig(save_loc)
+    plt.clf()
+
+
+plot_arr(disp_x_list__avgd_x, "disp_x avged over x", str(out_dir+"fig_outputs/disp_x_list__avgd_x"), "x")
+plot_arr(disp_y_list__avgd_x, "disp_y avged over x", str(out_dir+"fig_outputs/disp_y_list__avgd_x"), "x")
+plot_arr(strain_xx_list__avgd_x, "strain_xx avged over x", str(out_dir+"fig_outputs/strain_xx_list__avgd_x"), "x")
+plot_arr(strain_yy_list__avgd_x, "strain_yy avged over x", str(out_dir+"fig_outputs/strain_yy_list__avgd_x"), "x")
+plot_arr(strain_xy_list__avgd_x, "strain_xy avged over x", str(out_dir+"fig_outputs/strain_xy_list__avgd_x"), "x")
+
+plot_arr(disp_x_list__avgd_y, "disp_x avged over y", str(out_dir+"fig_outputs/disp_x_list__avgd_y") ,"y")
+plot_arr(disp_y_list__avgd_y, "disp_y avged over y", str(out_dir+"fig_outputs/disp_y_list__avgd_y") ,"y")
+plot_arr(strain_xx_list__avgd_y, "strain_xx avged over y", str(out_dir+"fig_outputs/strain_xx_list__avgd_y") ,"y")
+plot_arr(strain_yy_list__avgd_y, "strain_yy avged over y", str(out_dir+"fig_outputs/strain_yy_list__avgd_y") ,"y")
+plot_arr(strain_xy_list__avgd_y, "strain_xy avged over y", str(out_dir+"fig_outputs/strain_xy_list__avgd_y") ,"y")
 
 
 
 
+if(save_field_plots):
+    for i in range(0, len(pydic.grid_list)):
+          grid = pydic.grid_list[i]
+          print("Plotting " + str(grid.image))
+        
+          fig = grid.plot_field(grid.disp_x, 'x disp')  
+          plt.savefig(str(out_dir+"fig_outputs/disp_x/x_disp_"+str(i)))
+
+          fig = grid.plot_field(grid.disp_y, 'y disp')
+          plt.savefig(str(out_dir+"fig_outputs/disp_y/y_disp_"+str(i)))
+
+          fig = grid.plot_field(grid.strain_xx, 'strain_xx')
+          plt.savefig(str(out_dir+"fig_outputs/strain_xx/strain_xx_"+str(i)))
+
+          fig = grid.plot_field(grid.strain_yy, 'strain_yy')
+          plt.savefig(str(out_dir+"fig_outputs/strain_yy/strain_yy_"+str(i)))
+
+          fig = grid.plot_field(grid.strain_xy, 'strain_xy')
+          plt.savefig(str(out_dir+"fig_outputs/strain_xy/strain_xy_"+str(i)))
+          
+          plt.cla() 
+          plt.clf() 
+          plt.close('all')   
+          
 
 
-
-# total_min_disp_x = pydic.grid_list[0]["disp_x"].min()
-# total_max_disp_x = pydic.grid_list[0].disp_x.max() 
-# total_min_disp_y = pydic.grid_list[0].disp_y.min()
-# total_max_disp_y = pydic.grid_list[0].disp_y.max() 
-# for i in range(len(pydic.grid_list)):
-#     a_max_disp_x = pydic.grid_list[i].disp_x.max()
-#     a_min_disp_x = pydic.grid_list[i].disp_x.min()
-#     a_max_disp_y = pydic.grid_list[i].disp_y.max()
-#     a_min_disp_y = pydic.grid_list[i].disp_y.min()
-#     if( a_max_disp_x > total_max_disp_x):
-#         total_max_disp_x = a_max_disp_x
-#     if( a_max_disp_y > total_max_disp_y):
-#         total_max_disp_y = a_max_disp_y
-#     if( a_min_disp_x < total_min_disp_x):
-#         total_min_disp_x = a_min_disp_x
-#     if( a_min_disp_y < total_min_disp_y):
-#         total_min_disp_y = a_min_disp_y
 
