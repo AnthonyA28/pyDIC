@@ -267,8 +267,8 @@ for digital image correlation"""
           strain_xx, strain_xy = np.gradient(self.disp_x, dx, dy, edge_order=2)
           strain_yx, strain_yy = np.gradient(self.disp_y, dx, dy, edge_order=2)
 
-          self.strain_xx = strain_xx + .5*(np.power(strain_xx,2) + np.power(strain_yy,2))
-          self.strain_yy = strain_yy + .5*(np.power(strain_xx,2) + np.power(strain_yy,2))
+          self.strain_xx = strain_xx + .5*(np.power(strain_xx,2) + np.power(strain_yx,2))
+          self.strain_yy = strain_yy + .5*(np.power(strain_yy,2) + np.power(strain_xy,2))
           self.strain_xy = .5*(strain_xy + strain_yx + strain_xx*strain_xy + strain_yx*strain_yy)
           
           
@@ -408,7 +408,7 @@ def draw_opencv(image, *args, **kwargs):
             if np.isnan(pt0[0])==False and np.isnan(pt0[1])==False and np.isnan(pt1[0])==False and np.isnan(pt1[1])==False :
                  disp_x = (pt1[0]-pt0[0])*scale
                  disp_y = (pt1[1]-pt0[1])*scale
-                 frame = cv2.line(frame, (pt0[0], pt0[1]), (int(pt0[0]+disp_x), int(pt0[1]+disp_y)), l_color, 2)
+                 frame = cv2.line(frame, (int(pt0[0]), int(pt0[1])), (int(pt0[0]+disp_x), int(pt0[1]+disp_y)), l_color, 2)
 
     if 'grid' in kwargs:
         gr =  kwargs['grid']
@@ -605,8 +605,8 @@ These results are :
      # treat optional args
      interpolation= 'raw' if not 'interpolation' in kwargs else kwargs['interpolation']
      save_image   = True if not 'save_image' in kwargs else kwargs['save_image']
-     scale_disp   = 1. if not 'scale_disp' in kwargs else float(kwargs['scale_disp']) ##AA 4->1
-     scale_grid   = 1. if not 'scale_grid' in kwargs else float(kwargs['scale_grid']) ##AA 25->1
+     scale_disp   = 4. if not 'scale_disp' in kwargs else float(kwargs['scale_disp'])
+     scale_grid   = 25. if not 'scale_grid' in kwargs else float(kwargs['scale_grid'])
      strain_type  = 'cauchy' if not 'strain_type' in kwargs else kwargs['strain_type']
 
      # read meta info file
@@ -656,8 +656,8 @@ These results are :
      # compute displacement and strain
      for i, mygrid in enumerate(grid_list):
           print("compute displacement and strain field of ", image_list[i], "...")
-          # disp = compute_disp_and_remove_rigid_transform(point_list[i], point_list[0]) # disp is measured from reference (image) need to figure out why this gives me WACKY negative values 
-          disp = compute_displacement(point_list[i], point_list[0]) ##FIXME #TODO  AA 
+          disp = compute_disp_and_remove_rigid_transform(point_list[i], point_list[0]) # disp is measured from reference (image) need to figure out why this gives me WACKY negative values 
+          #disp = compute_displacement(point_list[0], point_list[i]) ##FIXME #TODO  AA 
           mygrid.add_raw_data(win_size, image_list[0], image_list[i], point_list[0], point_list[i], disp)
           
           disp_list.append(disp)
